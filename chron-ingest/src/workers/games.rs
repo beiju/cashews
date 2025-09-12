@@ -369,24 +369,32 @@ async fn save_game_events(
         let absolute_idx = idx as i32 + start_idx;
 
         let enriched: Option<EnrichedGameEvent> = match MmolbGameEvent::deserialize(evt) {
-            Ok(parsed_event) => {
-                let (pitching_team, batting_team) = if parsed_event.inning_side == 0 {
-                    (home_team.as_ref(), away_team.as_ref())
-                } else {
-                    (away_team.as_ref(), home_team.as_ref())
-                };
-
-                let pitcher_id = pitching_team
-                    .zip(parsed_event.pitcher.as_ref())
-                    .and_then(|(t, name)| try_find_player_by_name(t, name, "Pitcher"));
-                let batter_id = batting_team
-                    .zip(parsed_event.batter.as_ref())
-                    .and_then(|(t, name)| try_find_player_by_name(t, name, "Batter"));
+            Ok(MmolbGameEvent::WithPlayerObjects { pitcher, batter, .. }) => {
+                let pitcher_id = Some(pitcher.id.clone());
+                let batter_id = Some(batter.id.clone());
                 Some(EnrichedGameEvent {
                     pitcher_id,
                     batter_id,
                 })
             }
+            Ok(MmolbGameEvent::WithPlayerNames { pitcher, batter, inning_side, .. }) => {
+                    let (pitching_team, batting_team) = if inning_side == 0 {
+                        (home_team.as_ref(), away_team.as_ref())
+                    } else {
+                        (away_team.as_ref(), home_team.as_ref())
+                    };
+
+                    let pitcher_id = pitching_team
+                        .zip(pitcher.as_ref())
+                        .and_then(|(t, name)| try_find_player_by_name(t, name, "Pitcher"));
+                    let batter_id = batting_team
+                        .zip(batter.as_ref())
+                        .and_then(|(t, name)| try_find_player_by_name(t, name, "Batter"));
+                    Some(EnrichedGameEvent {
+                        pitcher_id,
+                        batter_id,
+                    })
+                }
             Err(e) => {
                 let s = serde_json::to_string(evt);
                 warn!(
@@ -699,12 +707,28 @@ async fn analyze_game(
     let mut away_team_names = HashSet::new();
     for ele in game.event_log.iter() {
         let evt = MmolbGameEvent::deserialize(ele)?;
-        if evt.inning_side == 0 {
-            away_team_names.extend(evt.batter);
-            home_team_names.extend(evt.pitcher);
-        } else if evt.inning_side == 1 {
-            home_team_names.extend(evt.batter);
-            away_team_names.extend(evt.pitcher);
+        match evt {
+            // TODO Most of this is totally unnecessary with player objects, but I'm just
+            // making the minimal change to get things working. This should be changed
+            // properly.
+            MmolbGameEvent::WithPlayerObjects { pitcher, batter, inning_side, .. } => {
+                if inning_side == 0 {
+                    away_team_names.extend(batter.name);
+                    home_team_names.extend(pitcher.name);
+                } else if inning_side == 1 {
+                    home_team_names.extend(batter.name);
+                    away_team_names.extend(pitcher.name);
+                }
+            }
+            MmolbGameEvent::WithPlayerNames { pitcher, batter, inning_side, .. } => {
+                if inning_side == 0 {
+                    away_team_names.extend(batter);
+                    home_team_names.extend(pitcher);
+                } else if inning_side == 1 {
+                    home_team_names.extend(batter);
+                    away_team_names.extend(pitcher);
+                }
+            }
         }
     }
 
