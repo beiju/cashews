@@ -141,12 +141,30 @@ pub struct MmolbGame {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct MmolbGameEvent {
-    pub event: String, // event type
-    pub pitcher: Option<String>,
-    pub batter: Option<String>,
-    pub inning: i32,
-    pub inning_side: i32,
+pub struct PlayerInGameEvent {
+    pub id: String,
+    // There's always a player id (surprisingly) but not always a name
+    pub name: Option<String>,
+    // There's also stats info in here
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum MmolbGameEvent {
+    WithPlayerObjects {
+        event: String, // event type
+        pitcher: PlayerInGameEvent,
+        batter: PlayerInGameEvent,
+        inning: i32,
+        inning_side: i32,
+    },
+    WithPlayerNames {
+        event: String, // event type
+        pitcher: Option<String>,
+        batter: Option<String>,
+        inning: i32,
+        inning_side: i32,
+    }
 }
 
 #[derive(Debug, Deserialize)]
