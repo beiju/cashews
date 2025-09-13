@@ -18,8 +18,15 @@ CREATE OR REPLACE FUNCTION objectid_to_timestamp(text) RETURNS timestamptz
     IMMUTABLE
     PARALLEL SAFE
     RETURNS NULL ON NULL INPUT;
+    
+-- "drop materialized view if exists" errors if a table with the same name exists
+do $$
+begin
+if exists (select 1 from pg_class WHERE relname = 'game_player_stats_exploded' AND relkind = 'm') then
+    drop materialized view game_player_stats_exploded cascade;
+end if;
+end $$;
 
-drop materialized view if exists game_player_stats_exploded cascade;
 drop materialized view if exists game_player_stats_league_aggregate cascade;
 drop materialized view if exists game_player_stats_global_aggregate cascade;
 drop materialized view if exists pitches cascade;
