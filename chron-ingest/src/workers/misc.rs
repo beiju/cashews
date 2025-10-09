@@ -19,6 +19,13 @@ impl IntervalWorker for PollMiscData {
         )
         .await?;
 
+        ctx.fetch_and_save(
+            "https://mmolb.com/api/corruption-stats",
+            EntityKind::Spotlight,
+            "corruption-stats",
+        )
+        .await?;
+
         ctx.fetch_and_save("https://mmolb.com/api/news", EntityKind::News, "news")
             .await?;
 
