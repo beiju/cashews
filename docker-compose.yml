@@ -59,6 +59,6 @@ volumes:
     driver_opts:
       type: 'none'
       o: 'bind'
-      device: "${CHRON_DB_PATH:-/var/lib/docker/volumes/cashews_postgres_db"
+      device: "${CHRON_DB_PATH:-/var/lib/docker/volumes/cashews_postgres_db}"
   scylla_db:
   export:
