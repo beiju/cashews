@@ -42,6 +42,7 @@ pub enum EntityKind {
     PlayerFeed = 27,
     TeamFeed = 28,
     CorruptionStats = 29,
+    WeatherForecast = 30,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]
