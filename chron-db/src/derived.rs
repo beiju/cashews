@@ -50,7 +50,7 @@ pub struct DbTeam {
     pub full_location: Option<String>,
     pub emoji: String,
     pub color: String,
-    pub abbreviation: String,
+    pub abbreviation: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, FromRow)]
