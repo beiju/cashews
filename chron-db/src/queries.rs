@@ -227,6 +227,7 @@ impl ChronDb {
         }
 
         let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
+        println!("This is me trying to debug slow versions queries: \n{q}");
         let res = sqlx::query_as_with(&q, vals).fetch_all(&self.pool).await?;
         Ok(with_page_token(res))
     }
