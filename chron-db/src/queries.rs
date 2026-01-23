@@ -244,6 +244,9 @@ impl ChronDb {
         println!("1. DB execution (EXPLAIN ANALYZE) took: {:?}", db_duration);
 
         // (Optional) Print the actual DB-reported time from the plan
+        for (i, row) in explain_rows.iter().enumerate() {
+            println!("EXPLAIN ANALYZE {i:>5} {}", row.get::<String, _>(0));
+        }
         if let Some(row) = explain_rows.last() {
             let plan_line: String = row.get(0);
             println!("   DB internal report: {}", plan_line);
