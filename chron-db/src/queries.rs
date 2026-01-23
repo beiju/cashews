@@ -1,10 +1,11 @@
-use std::pin::Pin;
+use std::{pin::Pin, time::Instant};
 
 use futures::{Stream, TryStreamExt};
 use sea_query::{Asterisk, Expr, PostgresQueryBuilder, Query, SimpleExpr};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use sqlx::Row;
 
 use crate::{
     ChronDb, Idens,
@@ -227,8 +228,43 @@ impl ChronDb {
         }
 
         let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
-        println!("This is me trying to debug slow versions queries: \n{q}");
-        let res = sqlx::query_as_with(&q, vals).fetch_all(&self.pool).await?;
+
+        println!("Running this query with enhanced explanation: \n{q}");
+
+        // --- PART 1: Database Execution Only ---
+        // We use EXPLAIN ANALYZE to force the DB to run the work, but return almost no data.
+        let explain_q = format!("EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF) {}", q);
+        let start_db = Instant::now();
+
+        let explain_rows = sqlx::query_with(&explain_q, vals.clone()) // Clone vals for second run
+            .fetch_all(&self.pool)
+            .await?;
+
+        let db_duration = start_db.elapsed();
+        println!("1. DB execution (EXPLAIN ANALYZE) took: {:?}", db_duration);
+
+        // (Optional) Print the actual DB-reported time from the plan
+        if let Some(row) = explain_rows.last() {
+            let plan_line: String = row.get(0);
+            println!("   DB internal report: {}", plan_line);
+        }
+
+        // --- PART 2: Full Round-trip ---
+        // This includes DB execution + Network + Deserialization into structs.
+        let start_total = Instant::now();
+
+        let res = sqlx::query_as_with(&q, vals)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let total_duration = start_total.elapsed();
+        println!("2. Full round-trip (Network + Mapping) took: {:?}", total_duration);
+
+        // Comparison calculation
+        let overhead = total_duration.saturating_sub(db_duration);
+        println!("---");
+        println!("Estimated Rust/Network overhead: {:?}", overhead);
+
         Ok(with_page_token(res))
     }
 
