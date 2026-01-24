@@ -93,8 +93,8 @@ impl IntervalWorker for PollGameDays {
             game_ids_to_poll,
             25,
             "games",
-            // redundant check ig?
-            fetch_game_if_not_known_completed,
+            // I changed this from fetch_game_if_not_known_completed because these games should never be known completed
+            poll_game_by_id,
         )
         .await;
 
