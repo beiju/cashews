@@ -1,4 +1,4 @@
-use std::{collections::HashSet, str::FromStr, sync::Arc};
+use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration as StdDuration};
 
 use anyhow::anyhow;
 use chron_base::ChronConfig;
@@ -9,9 +9,7 @@ use models::{EntityKind, NewObject};
 use sea_query::Iden;
 use siphasher::sip128::{Hasher128, SipHasher};
 use sqlx::{
-    Acquire, Executor, PgPool,
-    postgres::{PgConnectOptions, PgPoolOptions},
-    types::JsonRawValue,
+    Acquire, ConnectOptions, Executor, PgPool, postgres::{PgConnectOptions, PgPoolOptions}, types::JsonRawValue
 };
 use time::{Duration, OffsetDateTime};
 use tracing::{error, info};
@@ -68,8 +66,11 @@ pub struct ChronDb {
 
 impl ChronDb {
     pub async fn new_from_scratch(config: &ChronConfig) -> anyhow::Result<ChronDb> {
-        let pool_opts = PgPoolOptions::new().max_connections(50);
-        let conn_opts = PgConnectOptions::from_str(&config.database_uri)?;
+        let pool_opts = PgPoolOptions::new()
+            .max_connections(50)
+            .acquire_slow_threshold(StdDuration::from_secs(10));
+        let conn_opts = PgConnectOptions::from_str(&config.database_uri)?
+            .log_slow_statements(log::LevelFilter::Warn, StdDuration::from_secs(30));
         let pool = pool_opts.connect_with(conn_opts).await?;
 
         Ok(ChronDb {
