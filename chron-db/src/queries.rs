@@ -103,7 +103,7 @@ impl ChronDb {
         kind: EntityKind,
         entity_id: &str,
     ) -> anyhow::Result<Option<EntityObservation>> {
-        let res = sqlx::query_as("select kind, entity_id, timestamp, data from observations inner join objects using (hash) where kind = $1 and entity_id = $2")
+        let res = sqlx::query_as("select kind, entity_id, timestamp, data from observations inner join objects using (hash) where kind = $1 and entity_id = $2 order by timestamp desc limit 1")
             .bind(kind)
             .bind(entity_id)
             .fetch_optional(&self.pool)
