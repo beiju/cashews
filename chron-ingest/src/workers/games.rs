@@ -34,7 +34,9 @@ impl IntervalWorker for PollLiveGames {
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
+        info!("Starting PollLiveGames tick");
         let time = ctx.try_update_time().await?;
+        info!("Got time");
 
         let known_games_today = ctx
             .db
@@ -47,6 +49,7 @@ impl IntervalWorker for PollLiveGames {
                 team: None,
             })
             .await?;
+        info!("Got games for this season");
         let live_games = known_games_today
             .items
             .into_iter()
@@ -67,19 +70,24 @@ impl IntervalWorker for PollGameDays {
     }
 
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
+        info!("Start PollGameDays tick");
         let state = ctx.try_update_state().await?;
+        info!("PollGameDays updated state");
 
         // todo: loop multiple seasons?
         let season_id = state.season_id;
         handle_season(ctx, season_id.clone()).await?;
+        info!("PollGameDays updated season");
 
         // ok, now that we've saved all the days, query all the unfinished games
         // todo: only run this for current season?
         let mut game_ids_to_poll: HashSet<String> =
             HashSet::from_iter(get_all_game_ids_from_days(ctx, Some(&season_id)).await?);
+        info!("PollGameDays got all {} game ids from season {season_id}", game_ids_to_poll.len());
         for known_complete in query_completed_game_ids(&ctx).await? {
             game_ids_to_poll.remove(&known_complete);
         }
+        info!("PollGameDays filtered to {} non-known-complete games in {season_id}", game_ids_to_poll.len());
 
         ctx.process_many_with_progress(
             game_ids_to_poll,
@@ -663,7 +671,7 @@ pub async fn fetch_all_seasons(ctx: &WorkerContext) -> anyhow::Result<()> {
         .collect();
 
     // we really don't wanna load up all game objects rn so do this the dumb way
-    season_ids.insert("6805db0fac48194de3cd42d1".to_string()); // season 0 
+    season_ids.insert("6805db0fac48194de3cd42d1".to_string()); // season 0
     season_ids.insert("6846ba011b7a53d888cdef49".to_string()); // season 1
     season_ids.insert("6858e7be2d94a56ec8d460ea".to_string()); // season 2
 
