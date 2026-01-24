@@ -80,8 +80,11 @@ impl ChronDb {
     }
 
     pub async fn new(config: &ChronConfig) -> anyhow::Result<ChronDb> {
-        let pool_opts = PgPoolOptions::new().max_connections(50);
-        let conn_opts = PgConnectOptions::from_str(&config.database_uri)?;
+        let pool_opts = PgPoolOptions::new()
+            .max_connections(50)
+            .acquire_slow_threshold(StdDuration::from_secs(10));
+        let conn_opts = PgConnectOptions::from_str(&config.database_uri)?
+            .log_slow_statements(log::LevelFilter::Warn, StdDuration::from_secs(30));
         let pool = pool_opts.connect_with(conn_opts).await?;
 
         if let Err(_) = pool.execute("select * from _sqlx_migrations").await {
