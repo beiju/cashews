@@ -366,8 +366,9 @@ async fn save_game_events(
     raw_events: &[serde_json::Value],
     start_idx: i32,
 ) -> anyhow::Result<()> {
-    let away_team = try_get_team(&ctx.db, &game.away_team_id, &timestamp).await?;
-    let home_team = try_get_team(&ctx.db, &game.home_team_id, &timestamp).await?;
+    // Double nested option: Outer layer is "did we try to fetch this yet", inner layer is "did the fetch return a result"
+    let mut away_team_lazy: Option<Option<MmolbTeam>> = None;
+    let mut home_team_lazy: Option<Option<MmolbTeam>> = None;
 
     let mut indexes = Vec::new();
     let mut datas = Vec::new();
@@ -386,6 +387,19 @@ async fn save_game_events(
                 })
             }
             Ok(MmolbGameEvent::WithPlayerNames { pitcher, batter, inning_side, .. }) => {
+                    let away_team = if let Some(away_team) = &away_team_lazy {
+                        away_team
+                    } else {
+                        let away_team = try_get_team(&ctx.db, &game.away_team_id, &timestamp).await?;
+                        away_team_lazy.insert(away_team)
+                    };
+                    let home_team = if let Some(home_team) = &home_team_lazy {
+                        home_team
+                    } else {
+                        let home_team = try_get_team(&ctx.db, &game.home_team_id, &timestamp).await?;
+                        home_team_lazy.insert(home_team)
+                    };
+
                     let (pitching_team, batting_team) = if inning_side == 0 {
                         (home_team.as_ref(), away_team.as_ref())
                     } else {
