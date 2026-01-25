@@ -282,9 +282,11 @@ async fn poll_game_by_id(ctx: &WorkerContext, id: String) -> anyhow::Result<()> 
     let resp = ctx.fetch_and_save(url, EntityKind::Game, &id).await?;
     info!("poll_game_by_id saved raw game {id}");
 
-    let game: MmolbGame = resp.parse()?;
-    process_game_data(ctx, &id, &game, &resp.timestamp(), true).await?;
-    info!("poll_game_by_id saved processed game {id}");
+    // I disabled this because it was slowing down my ingest to the point where
+    // it couldn't keep up with live games --beiju
+    // let game: MmolbGame = resp.parse()?;
+    // process_game_data(ctx, &id, &game, &resp.timestamp(), true).await?;
+    // info!("poll_game_by_id saved processed game {id}");
 
     Ok(())
 }
