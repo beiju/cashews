@@ -276,11 +276,15 @@ async fn fetch_game_if_not_known_completed(
 }
 
 async fn poll_game_by_id(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
+    info!("poll_game_by_id starting on game {id}");
+
     let url = format!("https://mmolb.com/api/game/{}", id);
     let resp = ctx.fetch_and_save(url, EntityKind::Game, &id).await?;
+    info!("poll_game_by_id saved raw game {id}");
 
     let game: MmolbGame = resp.parse()?;
     process_game_data(ctx, &id, &game, &resp.timestamp(), true).await?;
+    info!("poll_game_by_id saved processed game {id}");
 
     Ok(())
 }
@@ -305,6 +309,7 @@ async fn process_game_data(
             last_update: game.event_log.last(),
         })
         .await?;
+    info!("process_game_data updated games table with game {id}");
 
     let generic_game = GenericGame {
         away_team_id: &game.away_team_id,
@@ -316,10 +321,14 @@ async fn process_game_data(
 
     if should_save_game_events {
         save_game_events(ctx, *timestamp, &generic_game, &game.event_log, 0).await?;
+        info!("process_game_data saved game events for game {id}");
+    } else {
+        info!("process_game_data will not save game events for game {id}");
     }
 
     if let Some(game_stats) = &game.stats {
         let analysis = analyze_game(ctx, id, &game).await?;
+        info!("process_game_data finished analyze_game for game {id}");
 
         let mut stats = Vec::new();
         for (team_id, team_stats) in game_stats {
@@ -340,6 +349,7 @@ async fn process_game_data(
         ctx.db
             .update_game_player_stats(&id, game.season, game.day.to_int(), &stats)
             .await?;
+        info!("process_game_data updated stats for game {id}");
     }
 
     Ok(())
