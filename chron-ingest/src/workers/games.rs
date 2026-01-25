@@ -276,11 +276,11 @@ async fn fetch_game_if_not_known_completed(
 }
 
 async fn poll_game_by_id(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
-    info!("poll_game_by_id starting on game {id}");
+    // info!("poll_game_by_id starting on game {id}");
 
     let url = format!("https://mmolb.com/api/game/{}", id);
-    let resp = ctx.fetch_and_save(url, EntityKind::Game, &id).await?;
-    info!("poll_game_by_id saved raw game {id}");
+    let _resp = ctx.fetch_and_save(url, EntityKind::Game, &id).await?;
+    // info!("poll_game_by_id saved raw game {id}");
 
     // I disabled this because it was slowing down my ingest to the point where
     // it couldn't keep up with live games --beiju
