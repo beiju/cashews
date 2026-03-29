@@ -7,7 +7,8 @@ services:
       - API_BASE=http://api:3001
     restart: unless-stopped
     ports:
-    - 127.0.0.1:3000:3000
+      # I removed the IP and just kept the port so I could connect from the LAN --beiju
+    - 3000:3000
   api:
     build: .
     entrypoint: ["/app/chron-api"]
@@ -34,7 +35,7 @@ services:
       - CHRON_EXPORT_PATH=/export
       - CHRON_DATABASE_URI=postgres://postgres:password@postgres:5432/postgres
   postgres:
-    image: postgres:17-alpine 
+    image: postgres:17-alpine
     environment:
       - POSTGRES_PASSWORD=password
     volumes:
