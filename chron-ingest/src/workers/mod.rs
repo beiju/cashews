@@ -93,6 +93,19 @@ impl WorkerContext {
         Ok(resp)
     }
 
+    pub async fn fetch_and_save_paginated_feed(
+        &self,
+        base_url: String,
+        kind: EntityKind,
+        entity_id: impl Into<String>,
+    ) -> anyhow::Result<ClientResponse> {
+        let resp = self.client.fetch_paginated_feed(base_url).await?;
+        let entity_id = entity_id.into();
+        self.db.save(resp.to_chron(kind, &entity_id)?).await?;
+        // self.scylla.save(resp.to_chron(kind, &entity_id)?).await?;
+        Ok(resp)
+    }
+
     pub async fn process_many<'a, T, F, Fut>(
         &'a self,
         values: impl IntoIterator<Item = T>,

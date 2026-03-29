@@ -158,7 +158,7 @@ impl IntervalWorker for PollTeamFeeds {
 async fn fetch_player_feed(ctx: &WorkerContext, player_id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/feed?player={}", &player_id);
     let _ = ctx
-        .fetch_and_save(url, EntityKind::PlayerFeed, player_id)
+        .fetch_and_save_paginated_feed(url, EntityKind::PlayerFeed, player_id)
         .await?;
 
     // todo: do anything immediately, or wait for ProcessFeeds to come around?
@@ -168,7 +168,7 @@ async fn fetch_player_feed(ctx: &WorkerContext, player_id: String) -> anyhow::Re
 async fn fetch_team_feed(ctx: &WorkerContext, team_id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/feed?team={}", &team_id);
     let _ = ctx
-        .fetch_and_save(url, EntityKind::TeamFeed, team_id)
+        .fetch_and_save_paginated_feed(url, EntityKind::TeamFeed, team_id)
         .await?;
 
     // todo: do anything immediately, or wait for ProcessFeeds to come around?

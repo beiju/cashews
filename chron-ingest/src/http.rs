@@ -2,7 +2,8 @@ use std::{sync::Arc, time::Duration};
 
 use chron_db::models::{EntityKind, NewObject};
 use reqwest::{Client, ClientBuilder, IntoUrl, StatusCode, Url};
-use serde::de::DeserializeOwned;
+use serde::Deserialize;
+use serde::de::{Deserializer, DeserializeOwned};
 use time::OffsetDateTime;
 use tokio::sync::Semaphore;
 use tracing::{debug, info, warn};
@@ -24,6 +25,25 @@ pub struct ClientResponse {
     pub data: Vec<u8>,
     pub _status_code: StatusCode,
     pub _was_cached: bool,
+}
+
+// I got this from https://stackoverflow.com/a/44331646/522118
+fn deserialize_optional_field<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Ok(Some(Option::deserialize(deserializer)?))
+}
+
+#[derive(Deserialize)]
+struct FeedHolder {
+    feed: Vec<serde_json::Value>,
+
+    // this field was added in the season 11 preseason
+    // outer option: is the field present, inner option: is the field null
+    #[serde(deserialize_with = "deserialize_optional_field")]
+    next_cursor: Option<Option<String>>,
 }
 
 impl ClientResponse {
@@ -190,6 +210,93 @@ impl DataClient {
         //     self.cached_responses
         //         .insert(orig_url.to_string(), sr.clone());
         // }
+
+        Ok(sr)
+    }
+
+    pub async fn fetch_paginated_feed(&self, base_url: String) -> anyhow::Result<ClientResponse> {
+        let _permit = self.semaphore.acquire().await?;
+
+        let mut cursor = None;
+        let mut fetched_events_reverse = Vec::new();
+        let timestamp_before = OffsetDateTime::now_utc();
+        // For now, we pretend that this all happens in a single fetch
+        let (last_status_code, fetched_events_forward) = loop {
+            let url = if let Some(cursor) = cursor {
+                format!("{base_url}&limit=100&cursor={cursor}")
+            } else {
+                format!("{base_url}&limit=100")
+            };
+            let request = self.client.get(url);
+            let page_timestamp_before = OffsetDateTime::now_utc();
+            let response = request.send().await?;
+            let page_timestamp_after = OffsetDateTime::now_utc();
+            debug!(
+                "{} {} ({}s)",
+                response.status(),
+                response.url(),
+                (page_timestamp_after - page_timestamp_before).as_seconds_f64()
+            );
+
+            let status_code = response.status();
+            if status_code == StatusCode::BAD_GATEWAY {
+                // if we get a 502 from the server, sleep for a second
+                // because we're still within the semaphore, this basically functions as a light "circuit breaker"
+                // and will slow down at least one "slot" of the available permits
+                warn!("received 502 response, sleeping for a bit");
+                let _cb_permit = self
+                    .semaphore
+                    .acquire_many(self.semaphore.available_permits() as u32)
+                    .await?;
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+            let response = response.error_for_status()?;
+
+            let obj: FeedHolder = response.json().await?;
+            match obj {
+                // New format
+                FeedHolder {
+                    feed,
+                    next_cursor: Some(next_cursor),
+                } => {
+                    fetched_events_reverse.extend(feed);
+                    // Yes, it does make sense to unwrap the option and then re-wrap it
+                    if let Some(next_cursor) = next_cursor {
+                        cursor = Some(next_cursor);
+                    } else {
+                        fetched_events_reverse.reverse();
+                        break (status_code, fetched_events_reverse);
+                    }
+                }
+                // Old format
+                FeedHolder {
+                    feed,
+                    next_cursor: None,
+                } => {
+                    break (status_code, feed);
+                }
+            }
+        };
+        let timestamp_after = OffsetDateTime::now_utc();
+        debug!(
+            "All pages for {}: {}s",
+            base_url,
+            (timestamp_after - timestamp_before).as_seconds_f64()
+        );
+
+        let object = serde_json::json!({
+            "feed": fetched_events_forward,
+        });
+        let data = serde_json::to_vec(&object)?;
+
+        let sr = ClientResponse {
+            _url: Url::parse(&base_url)?,
+            timestamp_before,
+            timestamp_after,
+            data,
+            _status_code: last_status_code,
+            _was_cached: false,
+        };
 
         Ok(sr)
     }
