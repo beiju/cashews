@@ -20,7 +20,8 @@ services:
       - export:/export
     restart: unless-stopped
     ports:
-    - 127.0.0.1:3001:3001
+      # I removed the IP and just kept the port so I could connect from the LAN --beiju
+      - 3001:3001
   ingest:
     build: .
     entrypoint: ["/app/chron-ingest"]
