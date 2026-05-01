@@ -45,6 +45,7 @@ pub enum EntityKind {
     WeatherForecast = 30,
     CutsceneList = 31,
     Cutscene = 32,
+    Leaderboard = 33,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]

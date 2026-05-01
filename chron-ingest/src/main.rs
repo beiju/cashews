@@ -25,6 +25,7 @@ use crate::workers::{
     matviews::RefreshMatviews,
     message::PollMessage,
     misc::PollMiscData,
+    leaderboards::PollLeaderboards,
 };
 
 mod http;
@@ -115,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollTeamFeeds);
         spawn(ctx.clone(), PollPlayerFeeds);
         spawn(ctx.clone(), PollCutscenes);
+        spawn(ctx.clone(), PollLeaderboards);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");
