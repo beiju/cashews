@@ -129,7 +129,7 @@ struct FeedLink {
 
 impl IntervalWorker for PollPlayerFeeds {
     fn interval() -> Interval {
-        interval(Duration::from_secs(60 * 60))
+        interval(Duration::from_secs(5 * 60 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {

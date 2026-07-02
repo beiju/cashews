@@ -276,6 +276,7 @@ impl DataClient {
                     break (status_code, feed);
                 }
             }
+            tokio::time::sleep(Duration::from_millis(250)).await;
         };
         let timestamp_after = OffsetDateTime::now_utc();
         debug!(
