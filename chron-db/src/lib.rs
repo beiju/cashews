@@ -338,6 +338,34 @@ impl ChronDb {
                 .await?,
         )
     }
+
+    pub async fn save_feed_events(
+        &self,
+        event_ids: &[&str],
+        subject_types: &[&str],
+        subject_ids: &[&str],
+        timestamps: &[OffsetDateTime],
+        timestamp_strs: &[&str],
+        request_starts: &[OffsetDateTime],
+        request_ends: &[OffsetDateTime],
+        datas: &[serde_json::Value],
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "insert into feed_events (event_id,   subject_type, subject_id, timestamp,  timestamp_str, request_start, request_end, data) \
+                select                    unnest($1), unnest($2),   unnest($3), unnest($4), unnest($5),    unnest($6),    unnest($7),  unnest($8)"
+        )
+            .bind(event_ids)
+            .bind(subject_types)
+            .bind(subject_ids)
+            .bind(timestamps)
+            .bind(timestamp_strs)
+            .bind(request_starts)
+            .bind(request_ends)
+            .bind(datas)
+            .execute(&self.pool).await?;
+        Ok(())
+    }
+
 }
 
 pub fn json_hash(mut value: serde_json::Value) -> anyhow::Result<(Uuid, serde_json::Value)> {

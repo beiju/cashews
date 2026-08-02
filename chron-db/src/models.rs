@@ -49,6 +49,12 @@ pub enum EntityKind {
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]
+pub struct EventCursor {
+    pub timestamp_str: String,
+    pub event_id: String,
+}
+
+#[derive(Debug, Clone, FromRow, Serialize)]
 pub struct EntityVersion {
     pub kind: EntityKind,
     pub entity_id: String,

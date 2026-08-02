@@ -14,7 +14,7 @@ use workers::{
 
 use crate::workers::{
     cutscenes::PollCutscenes,
-    feeds::{PollPlayerFeeds, PollTeamFeeds, ProcessFeeds},
+    feeds::{PollPlayerFeeds, PollTeamFeeds, PollFeeds, ProcessFeeds},
     games::HandleSuperstarGames,
     league::PollBenches,
 };
@@ -100,23 +100,24 @@ async fn main() -> anyhow::Result<()> {
         };
         Ok(())
     } else {
-        spawn(ctx.clone(), PollLeague);
-        spawn(ctx.clone(), PollNewPlayers);
-        spawn(ctx.clone(), PollBenches);
-        spawn(ctx.clone(), RefreshMatviews);
-        spawn(ctx.clone(), PollMessage);
-        spawn(ctx.clone(), PollGameDays);
-        spawn(ctx.clone(), PollLiveGames);
-        spawn(ctx.clone(), PollAllPlayers);
-        spawn(ctx.clone(), PollMiscData);
-        spawn(ctx.clone(), LookupMapLocations);
-        spawn(ctx.clone(), HandleEventGames);
-        spawn(ctx.clone(), HandleSuperstarGames);
-        spawn(ctx.clone(), ProcessFeeds);
-        spawn(ctx.clone(), PollTeamFeeds);
-        spawn(ctx.clone(), PollPlayerFeeds);
-        spawn(ctx.clone(), PollCutscenes);
-        spawn(ctx.clone(), PollLeaderboards);
+        // spawn(ctx.clone(), PollLeague);
+        // spawn(ctx.clone(), PollNewPlayers);
+        // spawn(ctx.clone(), PollBenches);
+        // spawn(ctx.clone(), RefreshMatviews);
+        // spawn(ctx.clone(), PollMessage);
+        // spawn(ctx.clone(), PollGameDays);
+        // spawn(ctx.clone(), PollLiveGames);
+        // spawn(ctx.clone(), PollAllPlayers);
+        // spawn(ctx.clone(), PollMiscData);
+        // spawn(ctx.clone(), LookupMapLocations);
+        // spawn(ctx.clone(), HandleEventGames);
+        // spawn(ctx.clone(), HandleSuperstarGames);
+        // spawn(ctx.clone(), ProcessFeeds);
+        // spawn(ctx.clone(), PollTeamFeeds);
+        // spawn(ctx.clone(), PollPlayerFeeds);
+        spawn(ctx.clone(), PollFeeds);
+        // spawn(ctx.clone(), PollCutscenes);
+        // spawn(ctx.clone(), PollLeaderboards);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");

@@ -9,7 +9,7 @@ use time::OffsetDateTime;
 use crate::{
     ChronDb, Idens,
     models::{
-        EntityKind, EntityObservation, EntityVersion, EntityVersionLite, HasPageToken, PageToken,
+        EntityKind, EventCursor, EntityObservation, EntityVersion, EntityVersionLite, HasPageToken, PageToken,
     },
 };
 
@@ -78,6 +78,15 @@ impl ChronDb {
         let res = sqlx::query_as("select kind, entity_id, valid_from, null as valid_to, data from latest_versions inner join objects using (hash) where kind = $1 and entity_id = $2")
             .bind(kind)
             .bind(entity_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(res)
+    }
+
+    pub async fn get_feed_cursor(
+        &self,
+    ) -> anyhow::Result<Option<EventCursor>> {
+        let res = sqlx::query_as("select timestamp_str, event_id from feed_events order by timestamp, event_id desc limit 1")
             .fetch_optional(&self.pool)
             .await?;
         Ok(res)
