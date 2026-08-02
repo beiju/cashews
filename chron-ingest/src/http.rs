@@ -63,24 +63,6 @@ impl ClientResponse {
         })
     }
 
-    // pub fn to_asset_object(&self) -> anyhow::Result<NewObject> {
-    //     let asset = Asset::new(
-    //         self.url.clone(),
-    //         self.last_modified.clone(),
-    //         self.content_type.clone(),
-    //         &self.data,
-    //     );
-    //     let value = serde_json::to_value(&asset)?;
-
-    //     Ok(NewObject {
-    //         kind: EntityKind::Asset,
-    //         entity_id: asset.id,
-    //         data: value,
-    //         timestamp: self.timestamp(),
-    //         request_time: self.request_time(),
-    //     })
-    // }
-
     pub fn request_time(&self) -> time::Duration {
         self.timestamp_after - self.timestamp_before
     }
@@ -249,7 +231,7 @@ impl DataClient {
                 // Old format
                 FeedHolder {
                     feed,
-                    next_cursor: None,
+                    next_cursor: _,  // must be None thanks to the prior pattern matching Some
                 } => {
                     break (status_code, feed);
                 }

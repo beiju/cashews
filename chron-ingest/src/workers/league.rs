@@ -1,12 +1,9 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     time::Duration,
 };
 
-use chron_db::{
-    derived::{DbLeagueSaveModel, DbTeamSaveModel},
-    models::{EntityKind, NewObject},
-};
+use chron_db::models::{EntityKind, NewObject};
 use serde::Deserialize;
 use tracing::info;
 
@@ -21,7 +18,6 @@ use super::{IntervalWorker, WorkerContext};
 pub struct PollLeague;
 pub struct PollNewPlayers;
 pub struct PollAllPlayers;
-pub struct PollBenches;
 
 impl IntervalWorker for PollLeague {
     fn interval() -> tokio::time::Interval {
@@ -61,31 +57,6 @@ pub async fn poll_league(ctx: &WorkerContext) -> anyhow::Result<()> {
     .await?;
 
     Ok(())
-}
-
-#[derive(Deserialize)]
-struct GameWithBench {
-    #[serde(rename = "OriginalBench")]
-    original_bench: Option<HashMap<String, Bench>>,
-}
-
-#[derive(Deserialize)]
-struct Bench {
-    #[serde(rename = "Batters")]
-    batters: Vec<String>,
-    #[serde(rename = "Pitchers")]
-    pitchers: Vec<String>,
-}
-
-impl IntervalWorker for PollBenches {
-    fn interval() -> tokio::time::Interval {
-        tokio::time::interval(Duration::from_secs(30 * 60))
-    }
-
-    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
-        // TODO: I don't think we need this
-        Ok(())
-    }
 }
 
 impl IntervalWorker for PollNewPlayers {
@@ -135,18 +106,7 @@ impl IntervalWorker for PollAllPlayers {
 
 async fn fetch_league(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/league/{}", id);
-    let resp = ctx.fetch_and_save(url, EntityKind::League, &id).await?;
-
-    let league_data = resp.parse::<MmolbLeague>()?;
-    ctx.db
-        .update_league(DbLeagueSaveModel {
-            league_id: &id,
-            league_type: &league_data.league_type,
-            name: &league_data.name,
-            color: &league_data.color,
-            emoji: &league_data.emoji,
-        })
-        .await?;
+    ctx.fetch_and_save(url, EntityKind::League, &id).await?;
 
     Ok(())
 }
@@ -157,20 +117,6 @@ pub async fn fetch_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
 
     let team = resp.parse::<serde_json::Value>()?;
     synthetic::handle_incoming(ctx, EntityKind::Team, &id, &team, resp.timestamp()).await?;
-
-    let team_data = resp.parse::<MmolbTeam>()?;
-    ctx.db
-        .update_team(DbTeamSaveModel {
-            team_id: &id,
-            league_id: team_data.league.as_deref(),
-            location: &team_data.location,
-            name: &team_data.name,
-            full_location: team_data.full_location.as_deref(),
-            emoji: &team_data.emoji,
-            color: &team_data.color,
-            abbreviation: team_data.abbreviation.as_deref(),
-        })
-        .await?;
 
     Ok(())
 }
@@ -195,6 +141,10 @@ pub async fn fetch_players_bulk(ctx: &WorkerContext, ids: &[String]) -> anyhow::
 }
 
 pub async fn fetch_player(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
+    if id.len() < 5 {
+        info!("Fetching short player id \"{id}\"")
+    }
+
     let url = format!("https://mmolb.com/api/player/{}", id);
     let resp = ctx.fetch_and_save(url, EntityKind::Player, &id).await?;
 
@@ -256,9 +206,6 @@ async fn get_all_known_team_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<S
     // get from DB teams
     team_ids.extend(ctx.db.get_all_entity_ids(EntityKind::Team).await?);
 
-    // get from stats obj?
-    team_ids.extend(ctx.db.get_all_team_ids_from_stats().await?);
-
     Ok(team_ids)
 }
 
@@ -278,19 +225,20 @@ async fn get_all_known_player_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet
 
         if let Some(bench) = team.bench {
             for batter in bench.batters {
-                player_ids.insert(batter.player_id);
+                if batter.player_id != "#" {
+                    player_ids.insert(batter.player_id);
+                }
             }
             for pitcher in bench.pitchers {
-                player_ids.insert(pitcher.player_id);
+                if pitcher.player_id != "#" {
+                    player_ids.insert(pitcher.player_id);
+                }
             }
         }
     }
 
     // get from DB players
     player_ids.extend(ctx.db.get_all_entity_ids(EntityKind::Player).await?);
-
-    // get from stats obj?
-    player_ids.extend(ctx.db.get_all_player_ids_from_stats().await?);
 
     Ok(player_ids)
 }

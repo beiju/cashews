@@ -16,7 +16,6 @@ use tracing::{error, info};
 use util::HashingWriter;
 use uuid::Uuid;
 
-pub mod derived;
 pub mod models;
 pub mod queries;
 pub mod util;
@@ -62,6 +61,18 @@ pub enum Idens {
 pub struct ChronDb {
     pub pool: PgPool,
     pub saved_objects: Arc<DashSet<Uuid>>,
+}
+
+pub struct DbGameSaveModel<'a> {
+    pub game_id: &'a str,
+    pub season: i32,
+    pub day: i32,
+    pub day_special: Option<&'a str>,
+    pub home_team_id: &'a str,
+    pub away_team_id: &'a str,
+    pub state: &'a str,
+    pub event_count: i32,
+    pub last_update: Option<&'a serde_json::Value>,
 }
 
 impl ChronDb {
@@ -131,11 +142,6 @@ impl ChronDb {
     }
 
     pub async fn rebuild_all(&self, kind: EntityKind) -> anyhow::Result<()> {
-        // sqlx::query("select rebuild_entity($1::smallint, id) from latest_versions where kind = $1")
-        //     .bind(kind)
-        //     .execute(&self.pool)
-        //     .await?;
-
         let ids = self.get_all_entity_ids_slow(kind).await?;
         stream::iter(ids)
             .map(|x| self.rebuild(kind, x))
@@ -182,13 +188,13 @@ impl ChronDb {
         fn inner(
             x: NewObject,
         ) -> anyhow::Result<(
-            (EntityKind, std::string::String, OffsetDateTime, f64, Uuid),
+            (EntityKind, String, OffsetDateTime, f64, Uuid),
             serde_json::Value,
         )> {
             let (hash, data) = json_hash(x.data)?;
 
             // todo: need a struct for this big ass tuple...
-            let obs: (EntityKind, std::string::String, OffsetDateTime, f64, Uuid) = (
+            let obs: (EntityKind, String, OffsetDateTime, f64, Uuid) = (
                 x.kind,
                 x.entity_id,
                 x.timestamp,
@@ -245,7 +251,7 @@ impl ChronDb {
 
     pub async fn insert_observations_raw_bulk(
         &self,
-        observations: &[(EntityKind, std::string::String, OffsetDateTime, f64, Uuid)],
+        observations: &[(EntityKind, String, OffsetDateTime, f64, Uuid)],
     ) -> anyhow::Result<()> {
         let kinds = observations.iter().map(|x| x.0).collect::<Vec<_>>();
         let ids = observations.iter().map(|x| x.1.clone()).collect::<Vec<_>>();
@@ -366,6 +372,22 @@ impl ChronDb {
         Ok(())
     }
 
+
+    pub async fn update_game(&self, game: DbGameSaveModel<'_>) -> anyhow::Result<()> {
+        sqlx::query("insert into games (game_id, season, day, home_team_id, away_team_id, state, event_count, last_update, day_special) values ($1, $2, $3, $4, $5, $6, $7, $8, $9) on conflict (game_id) do update set state = excluded.state, event_count = excluded.event_count, last_update = excluded.last_update, day_special = excluded.day_special")
+            .bind(game.game_id)
+            .bind(game.season)
+            .bind(game.day)
+            .bind(game.home_team_id)
+            .bind(game.away_team_id)
+            .bind(game.state)
+            .bind(game.event_count)
+            .bind(game.last_update)
+            .bind(game.day_special)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 pub fn json_hash(mut value: serde_json::Value) -> anyhow::Result<(Uuid, serde_json::Value)> {

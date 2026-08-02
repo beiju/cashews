@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1.87 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.97 AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -6,7 +6,7 @@ COPY chron-api /app/chron-api
 COPY chron-base /app/chron-base
 COPY chron-db /app/chron-db
 COPY chron-ingest /app/chron-ingest
-COPY Cargo.toml Cargo.lock /app
+COPY Cargo.toml Cargo.lock /app/
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder 
@@ -18,7 +18,7 @@ COPY chron-api /app/chron-api
 COPY chron-base /app/chron-base
 COPY chron-db /app/chron-db
 COPY chron-ingest /app/chron-ingest
-COPY Cargo.toml Cargo.lock /app
+COPY Cargo.toml Cargo.lock /app/
 RUN cargo build --release
 
 # We do not need the Rust toolchain to run the binary!

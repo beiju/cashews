@@ -1,0 +1,10 @@
+drop table game_events;
+drop table game_player_stats;
+drop table game_player_stats_exploded;
+drop table leagues;
+drop table locations;
+drop table player_name_map;
+drop materialized view players;
+drop materialized view roster_slot_history;
+drop materialized view rosters;
+drop materialized view team_feeds;

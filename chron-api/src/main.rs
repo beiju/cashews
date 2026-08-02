@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc};
 
 use axum::{
     Router,
@@ -6,10 +6,8 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use chron_base::{ChronConfig, cache::SwrCache2, load_config, stop_signal};
+use chron_base::{ChronConfig, load_config, stop_signal};
 use chron_db::ChronDb;
-use derived_api::{LeagueAggregateResponse, refresh_league_aggregate};
-// use polars::enable_string_cache;
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
@@ -19,14 +17,11 @@ use tower_http::{
 use tracing::info;
 
 mod chron_api;
-mod derived_api;
-mod stats;
 
 #[derive(Clone)]
 pub struct AppState {
     config: Arc<ChronConfig>,
     db: ChronDb,
-    percentile_cache: SwrCache2<(), Vec<LeagueAggregateResponse>, AppState>,
 }
 
 pub struct AppError(anyhow::Error);
@@ -45,19 +40,13 @@ impl IntoResponse for AppError {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
-    // enable_string_cache();
-
     let config = load_config()?;
     let db = ChronDb::new(&config).await?;
 
     let state = AppState {
         db,
-        percentile_cache: SwrCache2::new(Duration::from_secs(60 * 10), 10, move |_, ctx| {
-            refresh_league_aggregate(ctx)
-        }),
         config: Arc::new(config),
     };
-    state.percentile_cache.set_context(state.clone());
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET])
@@ -69,14 +58,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut app = Router::new()
         .route("/chron/v0/entities", get(chron_api::get_entities))
-        .route("/chron/v0/versions", get(chron_api::get_versions))
-        .route("/games", get(derived_api::get_games))
-        .route("/teams", get(derived_api::get_teams))
-        .route("/leagues", get(derived_api::get_leagues))
-        .route("/player-stats", get(derived_api::get_player_stats))
-        .route("/scorigami", get(derived_api::scorigami))
-        .route("/locations", get(derived_api::locations))
-        .route("/stats", get(stats::stats));
+        .route("/chron/v0/versions", get(chron_api::get_versions));
 
     if let Some(dir) = &state.config.export_path {
         dbg!(dir);
@@ -87,19 +69,18 @@ async fn main() -> anyhow::Result<()> {
         .layer(cors)
         .layer(CompressionLayer::new())
         .layer(trace)
-        // .layer(TimeoutLayer::new(Duration::from_secs(10)))
-        // .layer(ResponseBodyTimeoutLayer::new(Duration::from_secs(10)))
         .with_state(state);
 
     let addr = "0.0.0.0:3001";
     info!("starting api at {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr).await?;
     let serve_fut = axum::serve(listener, app);
-    let ctrlc_fut = stop_signal();
+    let ctrl_c_fut = stop_signal();
+
     tokio::select! {
         res = serve_fut => res?,
-        _ = ctrlc_fut => {}
-    };
+        _ = ctrl_c_fut => {}
+    }
 
     Ok(())
 }

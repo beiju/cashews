@@ -1,14 +1,4 @@
 services:
-  web:
-    build:
-      context: web/
-      dockerfile: Dockerfile
-    environment:
-      - API_BASE=http://api:3001
-    restart: unless-stopped
-    ports:
-      # I removed the IP and just kept the port so I could connect from the LAN --beiju
-    - 3000:3000
   api:
     build: .
     entrypoint: ["/app/chron-api"]
@@ -21,7 +11,7 @@ services:
     restart: unless-stopped
     ports:
       # I removed the IP and just kept the port so I could connect from the LAN --beiju
-      - 3001:3001
+      - "3001:3001"
   ingest:
     build: .
     entrypoint: ["/app/chron-ingest"]
@@ -43,17 +33,9 @@ services:
       - postgres_db:/var/lib/postgresql/data
     restart: unless-stopped
     ports:
-      - 127.0.0.1:5432:5432
+      - "127.0.0.1:5432:5432"
     command: ["-c", "shared_buffers=4GB", "-c", "max_connections=250", "-c", "maintenance_work_mem=4GB", "-c", "work_mem=1GB", "-c", "wal_buffers=16MB"]
     shm_size: 1G
-  scylla:
-    image: scylladb/scylla
-    volumes:
-      - scylla_db:/var/lib/scylla
-      - ./mnt:/mnt
-    ports:
-      - 127.0.0.1:9042:9042
-    command: ["--developer-mode", "1", "--smp", "4", "--memory", "4G", "--overprovisioned", "1"]
 
 volumes:
   postgres_db:

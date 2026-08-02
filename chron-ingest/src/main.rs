@@ -14,14 +14,12 @@ use workers::{
 
 use crate::workers::{
     cutscenes::PollCutscenes,
-    feeds::{PollPlayerFeeds, PollTeamFeeds, PollFeeds, ProcessFeeds},
+    feeds::{PollPlayerFeeds, PollTeamFeeds, PollFeeds},
     games::HandleSuperstarGames,
-    league::PollBenches,
 };
 use crate::workers::{
-    games::{HandleEventGames, PollGameDays, PollLiveGames},
+    games::{HandleEventGames, PollGameDays},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
-    map::LookupMapLocations,
     matviews::RefreshMatviews,
     message::PollMessage,
     misc::PollMiscData,
@@ -77,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
     let ctx = WorkerContext {
         client,
         db,
-        config: config,
+        config,
         _sim: Arc::new(RwLock::new(SimState {
             _season: Uuid::default(),
             _day: -1,
@@ -97,22 +95,18 @@ async fn main() -> anyhow::Result<()> {
                 info!("got ctrl-c, cancelling");
                 return Ok(());
             }
-        };
+        }
         Ok(())
     } else {
         spawn(ctx.clone(), PollLeague);
         spawn(ctx.clone(), PollNewPlayers);
-        spawn(ctx.clone(), PollBenches);
         spawn(ctx.clone(), RefreshMatviews);
         spawn(ctx.clone(), PollMessage);
         spawn(ctx.clone(), PollGameDays);
-        spawn(ctx.clone(), PollLiveGames);
         spawn(ctx.clone(), PollAllPlayers);
         spawn(ctx.clone(), PollMiscData);
-        spawn(ctx.clone(), LookupMapLocations);
         spawn(ctx.clone(), HandleEventGames);
         spawn(ctx.clone(), HandleSuperstarGames);
-        spawn(ctx.clone(), ProcessFeeds);
         spawn(ctx.clone(), PollTeamFeeds);
         spawn(ctx.clone(), PollPlayerFeeds);
         spawn(ctx.clone(), PollFeeds);
@@ -127,9 +121,6 @@ async fn main() -> anyhow::Result<()> {
 
 async fn handle_fn(ctx: &WorkerContext, name: &str, _args: &[String]) -> anyhow::Result<()> {
     match name {
-        "rebuild-games" => games::rebuild_games(ctx).await?,
-        "rebuild-games-stats" => games::rebuild_games(ctx).await?,
-        "rebuild-games-slow" => games::rebuild_games_slow(ctx).await?,
         "rebuild-all" => maintenance::rebuild_all(ctx).await?,
         "recompress" => maintenance::recompress(ctx).await?,
         "fetch-league" => league::poll_league(ctx).await?,

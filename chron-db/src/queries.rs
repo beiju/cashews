@@ -1,3 +1,4 @@
+use crate::models::{HasPageToken, PageToken};
 use std::pin::Pin;
 
 use futures::{Stream, TryStreamExt};
@@ -9,7 +10,7 @@ use time::OffsetDateTime;
 use crate::{
     ChronDb, Idens,
     models::{
-        EntityKind, EventCursor, EntityObservation, EntityVersion, EntityVersionLite, HasPageToken, PageToken,
+        EntityKind, EventCursor, EntityObservation, EntityVersion, EntityVersionLite,
     },
 };
 
@@ -86,7 +87,7 @@ impl ChronDb {
     pub async fn get_feed_cursor(
         &self,
     ) -> anyhow::Result<Option<EventCursor>> {
-        let res = sqlx::query_as("select timestamp_str, event_id from feed_events order by timestamp, event_id desc limit 1")
+        let res = sqlx::query_as("select timestamp_str, event_id from feed_events order by timestamp desc, event_id desc limit 1")
             .fetch_optional(&self.pool)
             .await?;
         Ok(res)

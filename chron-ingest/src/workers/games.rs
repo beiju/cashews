@@ -4,69 +4,28 @@ use std::{
     time::Duration,
 };
 
-use chron_db::{
-    ChronDb,
-    derived::{DbGame, DbGameSaveModel, GetGamesQuery},
-    models::{EntityKind, EntityVersion},
-};
+use chron_db::models::EntityKind;
 use serde::Deserialize;
-use time::OffsetDateTime;
 use tokio::time::interval;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use crate::{
-    models::{GameDayNumber, MmolbDay, MmolbGame, MmolbGameEvent, MmolbSeason, MmolbTeam},
-    workers::{IntervalWorker, WorkerContext, league},
+    models::{MmolbDay, MmolbGame, MmolbSeason},
+    workers::{IntervalWorker, WorkerContext},
 };
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
+use chron_db::DbGameSaveModel;
 
 pub struct PollGameDays;
 
-pub struct PollLiveGames;
 pub struct HandleEventGames;
-
-impl IntervalWorker for PollLiveGames {
-    fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(30))
-    }
-
-    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
-        info!("Starting PollLiveGames tick");
-        let time = ctx.try_update_time().await?;
-        info!("Got time");
-
-        let known_games_today = ctx
-            .db
-            .get_games(GetGamesQuery {
-                count: 999999, // ignore pagination for now?
-                season: Some(time.season_number),
-                day: None,
-                order: chron_db::queries::SortOrder::Asc,
-                page: None,
-                team: None,
-            })
-            .await?;
-        info!("Got games for this season");
-        let live_games = known_games_today
-            .items
-            .into_iter()
-            .filter(|x| x.state != "Complete")
-            .collect::<Vec<_>>();
-        info!("found {} live games in db", live_games.len());
-
-        ctx.process_many_with_progress(live_games, 20, "fetch live games", poll_live_game)
-            .await;
-
-        Ok(())
-    }
-}
 
 impl IntervalWorker for PollGameDays {
     fn interval() -> tokio::time::Interval {
         interval(Duration::from_secs(60 * 5))
     }
 
-    async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
         info!("Start PollGameDays tick");
         let state = ctx.try_update_state().await?;
         info!("PollGameDays updated state");
@@ -118,7 +77,7 @@ impl IntervalWorker for HandleSuperstarGames {
         interval(Duration::from_secs(60 * 5))
     }
 
-    async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
         let resp = ctx
             .fetch_and_save(
                 "https://mmolb.com/api/superstar-games",
@@ -134,55 +93,32 @@ impl IntervalWorker for HandleSuperstarGames {
             .flat_map(|x| x.game_id)
             .collect::<Vec<_>>();
 
-        poll_games_and_their_players(&ctx, &game_ids).await?;
+        poll_games(&ctx, &game_ids).await?;
         Ok(())
     }
 }
 
 // mostly just a quick hack to make sure we get the game IDs from the state object in as well
 // for eg. exhibition games
+// TODO(beiju) figure out if this is necessary still
 impl IntervalWorker for HandleEventGames {
     fn interval() -> tokio::time::Interval {
         interval(Duration::from_secs(60 * 5))
     }
 
-    async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
         let state = ctx.try_update_state().await?;
 
-        poll_games_and_their_players(ctx, &state.event_game_ids).await?;
+        poll_games(ctx, &state.event_game_ids).await?;
         Ok(())
     }
 }
 
 // mostly used for events/superstars
-async fn poll_games_and_their_players(ctx: &WorkerContext, ids: &[String]) -> anyhow::Result<()> {
+async fn poll_games(ctx: &WorkerContext, ids: &[String]) -> anyhow::Result<()> {
     // maybe should only poll if incomplete, but eh, there's not many going at once usually
     ctx.process_many(ids.to_vec(), 3, poll_game_by_id).await;
 
-    // this is a bit cheating but whatever
-    let event_teams: Vec<String> = sqlx::query_scalar(
-        "select distinct team_id from game_player_stats where game_id = any($1)",
-    )
-    .bind(&ids)
-    .fetch_all(&ctx.db.pool)
-    .await?;
-
-    let event_players: Vec<String> = sqlx::query_scalar(
-        "select distinct player_id from game_player_stats where game_id = any($1)",
-    )
-    .bind(&ids)
-    .fetch_all(&ctx.db.pool)
-    .await?;
-
-    ctx.process_many_with_progress(event_teams, 5, "event teams", league::fetch_team)
-        .await;
-    ctx.process_many_with_progress(
-        event_players.chunks(100),
-        5,
-        "event players",
-        league::fetch_players_bulk,
-    )
-    .await;
     Ok(())
 }
 
@@ -273,11 +209,8 @@ async fn fetch_game_if_not_known_completed(
 }
 
 async fn poll_game_by_id(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
-    // info!("poll_game_by_id starting on game {id}");
-
     let url = format!("https://mmolb.com/api/game/{}", id);
     let resp = ctx.fetch_and_save(url, EntityKind::Game, &id).await?;
-    // info!("poll_game_by_id saved raw game {id}");
 
     let game: MmolbGame = resp.parse()?;
     process_game_data(ctx, &id, &game).await?;
@@ -286,6 +219,7 @@ async fn poll_game_by_id(ctx: &WorkerContext, id: String) -> anyhow::Result<()> 
     Ok(())
 }
 
+// This is the only derived data that i deemed necessary to still include
 async fn process_game_data(
     ctx: &WorkerContext,
     id: &str,
@@ -309,288 +243,6 @@ async fn process_game_data(
     // Disabling game events and player stats processing because it was
     // slowing down my ingest to the point where it couldn't keep up with
     // live games --beiju
-    Ok(())
-}
-
-// todo: this is nasty
-struct GenericGame<'a> {
-    game_id: &'a str,
-    season: i32,
-    day: GameDayNumber,
-    home_team_id: &'a str,
-    away_team_id: &'a str,
-}
-
-struct EnrichedGameEvent {
-    pitcher_id: Option<String>,
-    batter_id: Option<String>,
-}
-
-async fn save_game_events(
-    ctx: &WorkerContext,
-    timestamp: OffsetDateTime,
-    game: &GenericGame<'_>,
-    raw_events: &[serde_json::Value],
-    start_idx: i32,
-) -> anyhow::Result<()> {
-    // Double nested option: Outer layer is "did we try to fetch this yet", inner layer is "did the fetch return a result"
-    let mut away_team_lazy: Option<Option<MmolbTeam>> = None;
-    let mut home_team_lazy: Option<Option<MmolbTeam>> = None;
-
-    let mut indexes = Vec::new();
-    let mut datas = Vec::new();
-    let mut pitchers = Vec::new();
-    let mut batters = Vec::new();
-    for (idx, evt) in raw_events.iter().enumerate() {
-        let absolute_idx = idx as i32 + start_idx;
-
-        let enriched: Option<EnrichedGameEvent> = match MmolbGameEvent::deserialize(evt) {
-            Ok(MmolbGameEvent::WithPlayerObjects { pitcher, batter, .. }) => {
-                let pitcher_id = Some(pitcher.id.clone());
-                let batter_id = Some(batter.id.clone());
-                Some(EnrichedGameEvent {
-                    pitcher_id,
-                    batter_id,
-                })
-            }
-            Ok(MmolbGameEvent::WithPlayerNames { pitcher, batter, inning_side, .. }) => {
-                    let away_team = if let Some(away_team) = &away_team_lazy {
-                        away_team
-                    } else {
-                        let away_team = try_get_team(&ctx.db, &game.away_team_id, &timestamp).await?;
-                        away_team_lazy.insert(away_team)
-                    };
-                    let home_team = if let Some(home_team) = &home_team_lazy {
-                        home_team
-                    } else {
-                        let home_team = try_get_team(&ctx.db, &game.home_team_id, &timestamp).await?;
-                        home_team_lazy.insert(home_team)
-                    };
-
-                    let (pitching_team, batting_team) = if inning_side == 0 {
-                        (home_team.as_ref(), away_team.as_ref())
-                    } else {
-                        (away_team.as_ref(), home_team.as_ref())
-                    };
-
-                    let pitcher_id = pitching_team
-                        .zip(pitcher.as_ref())
-                        .and_then(|(t, name)| try_find_player_by_name(t, name, "Pitcher"));
-                    let batter_id = batting_team
-                        .zip(batter.as_ref())
-                        .and_then(|(t, name)| try_find_player_by_name(t, name, "Batter"));
-                    Some(EnrichedGameEvent {
-                        pitcher_id,
-                        batter_id,
-                    })
-                }
-            Err(e) => {
-                let s = serde_json::to_string(evt);
-                warn!(
-                    "couldn't parse game event {}/{} ({:?}): {:?}",
-                    game.game_id, absolute_idx, s, e
-                );
-                None
-            }
-        };
-
-        indexes.push(absolute_idx);
-        datas.push(evt);
-        pitchers.push(enriched.as_ref().and_then(|x| x.pitcher_id.clone()));
-        batters.push(enriched.as_ref().and_then(|x| x.batter_id.clone()));
-    }
-
-    ctx.db
-        .update_game_events(
-            &game.game_id,
-            game.season,
-            game.day.to_int(),
-            &timestamp,
-            &indexes,
-            &datas,
-            &pitchers,
-            &batters,
-        )
-        .await?;
-    Ok(())
-}
-
-async fn try_get_team(
-    db: &ChronDb,
-    team_id: &str,
-    timestamp: &OffsetDateTime,
-) -> anyhow::Result<Option<MmolbTeam>> {
-    Ok(db
-        .get_entity_at(EntityKind::Team, &team_id, timestamp)
-        .await?
-        .map(|x| x.parse())
-        .transpose()?)
-}
-
-fn try_find_player_by_name(
-    team: &MmolbTeam,
-    player_name: &str,
-    position_type: &str,
-) -> Option<String> {
-    let mut result: Option<&str> = None;
-    for slot in &team.players {
-        // todo: remove alloc?
-        let full_name = format!("{} {}", slot.first_name, slot.last_name);
-        if full_name == player_name && slot.position_type.as_deref().unwrap_or("") == position_type
-        {
-            if result.is_some() {
-                // we found two valid players, abort
-                return None;
-            }
-            result = Some(&slot.player_id);
-        }
-    }
-    result.map(|x| x.to_string())
-}
-
-async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()> {
-    let current_count = game.event_count;
-
-    let url = format!(
-        "https://mmolb.com/api/game/{}/live?after={}",
-        game.game_id, current_count
-    );
-    let resp = ctx.client.fetch(&url).await?;
-
-    let events = resp.parse::<LiveResponse>()?;
-
-    let generic_game = GenericGame {
-        away_team_id: &game.away_team_id,
-        home_team_id: &game.home_team_id,
-        game_id: &game.game_id,
-        season: game.season,
-        day: if let Some(ref special) = game.day_special {
-            GameDayNumber::Special(special.to_string())
-        } else {
-            GameDayNumber::Normal(game.day)
-        },
-    };
-    save_game_events(
-        ctx,
-        resp.timestamp(),
-        &generic_game,
-        &events.entries,
-        current_count,
-    )
-    .await?;
-
-    fn is_game_over_event(e: &serde_json::Value) -> bool {
-        // oh no
-        if let Some(obj) = e.as_object() {
-            if let Some(event_val) = obj.get("event") {
-                if let Some(event_str) = event_val.as_str() {
-                    if event_str == "Recordkeeping" || event_str == "GameOver" {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-    let new_state = if events.entries.iter().any(is_game_over_event) {
-        "Complete".to_string()
-    } else {
-        game.state
-    };
-
-    if let Some(last_update) = events.entries.last() {
-        ctx.db
-            .update_game(DbGameSaveModel {
-                game_id: &game.game_id,
-                season: game.season,
-                day: game.day,
-                day_special: game.day_special.as_deref(),
-                home_team_id: &game.home_team_id,
-                away_team_id: &game.away_team_id,
-                state: &new_state,
-                event_count: current_count + events.entries.len() as i32,
-                last_update: Some(last_update),
-            })
-            .await?;
-    }
-
-    if new_state == "Complete" {
-        // if the game just finished, poll the whole thing properly, which should fill in stats and such
-        poll_game_by_id(ctx, game.game_id).await?;
-    }
-    Ok(())
-}
-
-#[derive(Deserialize)]
-pub struct LiveResponse {
-    entries: Vec<serde_json::Value>,
-}
-
-pub async fn rebuild_games(ctx: &WorkerContext) -> anyhow::Result<()> {
-    // get game ids separately because "all game objects" is gonna be massive
-    let mut all_game_ids = ctx.db.get_all_entity_ids(EntityKind::Game).await?;
-    all_game_ids.sort();
-    all_game_ids.reverse();
-
-    ctx.process_many_with_progress(all_game_ids, 20, "rebuild games", |ctx, g| {
-        rebuild_game(ctx, g)
-    })
-    .await;
-    Ok(())
-}
-
-pub async fn rebuild_games_slow(ctx: &WorkerContext) -> anyhow::Result<()> {
-    let count = ctx.db.get_version_count(EntityKind::Game).await?;
-    let stream = ctx.db.get_all_versions_stream(EntityKind::Game).await?;
-
-    stream
-        .map(|v| rebuild_games_slow_inner(ctx, v))
-        .buffer_unordered(10)
-        .enumerate()
-        .for_each(async |(i, res)| {
-            if i % 1000 == 0 {
-                info!("rebuild games: at {}/{}", i, count);
-            }
-            if let Err(e) = res {
-                error!("error rebuilding: {:?}", e);
-            }
-        })
-        .await;
-
-    Ok(())
-}
-
-async fn rebuild_games_slow_inner(
-    ctx: &WorkerContext,
-    version: sqlx::Result<EntityVersion>,
-) -> anyhow::Result<()> {
-    let version = version?;
-    let parsed = version.parse::<MmolbGame>()?;
-    process_game_data(
-        ctx,
-        &version.entity_id,
-        &parsed,
-    )
-    .await?;
-    Ok(())
-}
-
-async fn rebuild_game(
-    ctx: &WorkerContext,
-    game_id: String,
-) -> anyhow::Result<()> {
-    // info!("rebuilding game {}", game_id);
-    let game_data = ctx.db.get_latest(EntityKind::Game, &game_id).await?;
-    if let Some(game_data) = game_data {
-        let parsed = game_data.parse()?;
-        process_game_data(
-            ctx,
-            &game_id,
-            &parsed,
-        )
-        .await?;
-    }
-
     Ok(())
 }
 
@@ -635,6 +287,7 @@ pub async fn fetch_all_seasons(ctx: &WorkerContext) -> anyhow::Result<()> {
         .collect();
 
     // we really don't wanna load up all game objects rn so do this the dumb way
+    // TODO This is clearly meant to be updated manually but it hasn't been updated in like. a year
     season_ids.insert("6805db0fac48194de3cd42d1".to_string()); // season 0
     season_ids.insert("6846ba011b7a53d888cdef49".to_string()); // season 1
     season_ids.insert("6858e7be2d94a56ec8d460ea".to_string()); // season 2

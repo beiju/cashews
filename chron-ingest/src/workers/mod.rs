@@ -19,7 +19,6 @@ pub mod feeds;
 pub mod games;
 pub mod league;
 pub mod maintenance;
-pub mod map;
 pub mod matviews;
 pub mod message;
 pub mod misc;
@@ -90,7 +89,6 @@ impl WorkerContext {
         let resp = self.client.fetch(url).await?;
         let entity_id = entity_id.into();
         self.db.save(resp.to_chron(kind, &entity_id)?).await?;
-        // self.scylla.save(resp.to_chron(kind, &entity_id)?).await?;
         Ok(resp)
     }
 
