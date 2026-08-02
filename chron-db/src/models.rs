@@ -106,6 +106,12 @@ impl EntityObservation {
 #[sqlx(transparent, no_pg_array)]
 pub struct IsoDateTime(#[serde(with = "time::serde::rfc3339")] pub OffsetDateTime);
 
+impl IsoDateTime {
+    pub fn inner(&self) -> OffsetDateTime {
+        self.0 // this only compiles if .0 is Copy
+    }
+}
+
 impl From<OffsetDateTime> for IsoDateTime {
     fn from(value: OffsetDateTime) -> Self {
         IsoDateTime(value)

@@ -5,7 +5,6 @@ use std::{
 };
 
 use axum::{
-    body::Bytes,
     extract::State,
     http::{self, HeaderMap, HeaderValue},
     response::IntoResponse,
@@ -293,7 +292,8 @@ fn get_header_row<S: Serialize>(null_value: &S) -> anyhow::Result<String> {
 }
 
 struct HeaderOnlyStreamFormat<S: Serialize> {
-    csv: CsvStreamFormat,
+    // TODO Get rid of this allow(unused), probably by getting rid of stats entirely
+    #[allow(unused)] csv: CsvStreamFormat,
     null_value: S,
 }
 
@@ -312,7 +312,7 @@ impl<S: Serialize> StreamingFormat<S> for HeaderOnlyStreamFormat<S> {
         let header = get_header_row(&self.null_value);
         match header {
             Ok(string) => {
-                let bytes = Bytes::copy_from_slice(string.as_bytes());
+                let bytes = axum::body::Bytes::copy_from_slice(string.as_bytes());
                 Box::pin(stream::iter(std::iter::once(Ok(bytes))))
             }
             Err(e) => Box::pin(stream::iter(std::iter::once(Err(axum::Error::new(e))))),
@@ -322,14 +322,14 @@ impl<S: Serialize> StreamingFormat<S> for HeaderOnlyStreamFormat<S> {
     fn http_response_headers(
         &self,
         options: &StreamBodyAsOptions,
-    ) -> Option<axum::http::HeaderMap> {
+    ) -> Option<HeaderMap> {
         let mut header_map = HeaderMap::new();
         header_map.insert(
             http::header::CONTENT_TYPE,
             options
                 .content_type
                 .clone()
-                .unwrap_or_else(|| http::header::HeaderValue::from_static("text/csv")),
+                .unwrap_or_else(|| HeaderValue::from_static("text/csv")),
         );
         Some(header_map)
     }

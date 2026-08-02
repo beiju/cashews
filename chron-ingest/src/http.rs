@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde::de::{Deserializer, DeserializeOwned};
 use time::OffsetDateTime;
 use tokio::sync::Semaphore;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 #[derive(Clone)]
 pub struct DataClient {
@@ -103,28 +103,6 @@ impl DataClient {
         let semaphore = Arc::new(Semaphore::new(20));
 
         Ok(DataClient { client, semaphore })
-    }
-
-    pub async fn try_fetch(
-        &self,
-        orig_url: impl IntoUrl,
-    ) -> anyhow::Result<Option<ClientResponse>> {
-        let res = self.fetch(orig_url).await;
-
-        // if this is specifically a not found error, return None instead
-        // todo: can we make this cleaner?
-        if let Err(e) = &res {
-            if let Some(e) = e.downcast_ref::<reqwest::Error>() {
-                match e.status() {
-                    Some(StatusCode::NOT_FOUND) => {
-                        return Ok(None);
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        Ok(Some(res?))
     }
 
     pub async fn fetch(&self, orig_url: impl IntoUrl) -> anyhow::Result<ClientResponse> {

@@ -4,13 +4,11 @@ use std::{
 };
 
 use chron_db::{
-    derived::{DbLeagueSaveModel, DbTeamSaveModel, GetGamesQuery},
+    derived::{DbLeagueSaveModel, DbTeamSaveModel},
     models::{EntityKind, NewObject},
 };
-use futures::TryStreamExt;
 use serde::Deserialize;
-use tokio::time::interval;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::{
     http::ClientResponse,
@@ -87,43 +85,6 @@ impl IntervalWorker for PollBenches {
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
         // TODO: I don't think we need this
         Ok(())
-        // let mut stream = ctx.db.get_all_latest_stream(EntityKind::Game);
-        // let mut bench_players = HashSet::new();
-        // let mut i = 0;
-        // while let Some(game_ver) = stream.try_next().await? {
-        //     match game_ver.parse::<GameWithBench>() {
-        //         Ok(parsed) => {
-        //             if let Some(bench) = parsed.original_bench {
-        //                 for team_bench in bench.values() {
-        //                     // todo: mark if a bench player is a pitcher or a batter?
-        //                     bench_players.extend(team_bench.batters.iter().cloned());
-        //                     bench_players.extend(team_bench.pitchers.iter().cloned());
-        //                 }
-        //             }
-        //         }
-        //         Err(e) => warn!(
-        //             "failed to parse game with bench {}: {:?}",
-        //             game_ver.entity_id, e
-        //         ),
-        //     }
-        //     if i % 1000 == 0 {
-        //         info!("finding bench players (at {} games)", i);
-        //     }
-        //     i += 1;
-        // }
-
-        // info!("found {} players on bench, polling", bench_players.len());
-
-        // let bench_players = Vec::from_iter(bench_players);
-        // ctx.process_many_with_progress(
-        //     bench_players.chunks(100),
-        //     1,
-        //     "fetch bench players",
-        //     fetch_players_bulk,
-        // )
-        // .await;
-
-        // Ok(())
     }
 }
 

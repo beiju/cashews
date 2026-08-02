@@ -1,5 +1,3 @@
-use std::{fmt::Display, str::FromStr};
-
 use anyhow::anyhow;
 use config::Config;
 use serde::{Deserialize, Serialize};
@@ -35,55 +33,6 @@ pub fn load_config() -> anyhow::Result<ChronConfig> {
         .build()?
         .try_deserialize()?;
     Ok(settings)
-}
-
-pub struct ObjectId([u8; 12]);
-
-impl Display for ObjectId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl FromStr for ObjectId {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // let engine = base64::engine::general_purpose::URL_SAFE;
-        // let data = engine.decode(s)?;
-        // if data.len() != 32 {
-        //     return Err(anyhow::anyhow!("invalid page token"));
-        // }
-
-        // let timestamp_nanos = i128::from_le_bytes(data[0..16].try_into().unwrap());
-        // let timestamp = OffsetDateTime::from_unix_timestamp_nanos(timestamp_nanos)?;
-        // let entity_id = Uuid::from_slice(&data[16..32])?;
-
-        // Ok(PageToken {
-        //     entity_id,
-        //     timestamp,
-        // })
-        Ok(todo!())
-    }
-}
-
-impl Serialize for ObjectId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-impl<'de> Deserialize<'de> for ObjectId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let str = String::deserialize(deserializer)?;
-        ObjectId::from_str(&str).map_err(|_| serde::de::Error::custom("invalid object id"))
-    }
 }
 
 pub fn objectid_to_timestamp(id: &str) -> anyhow::Result<OffsetDateTime> {

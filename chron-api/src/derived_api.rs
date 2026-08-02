@@ -6,7 +6,7 @@ use axum::{
 };
 use chron_base::normalize_location;
 use chron_db::{
-    derived::{AverageStats, DbGame, DbGamePlayerStats, DbLeague, DbTeam},
+    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam},
     models::PageToken,
     queries::{PaginatedResult, SortOrder},
 };
@@ -67,7 +67,7 @@ pub struct GetLeaguesQuery {}
 
 pub async fn get_leagues(
     State(ctx): State<AppState>,
-    Query(_q): Query<GetTeamsQuery>,
+    Query(_q): Query<GetLeaguesQuery>,
 ) -> Result<Json<PaginatedResult<DbLeague>>, AppError> {
     let teams = ctx.db.get_leagues().await?;
 

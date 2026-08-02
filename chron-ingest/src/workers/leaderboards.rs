@@ -14,7 +14,7 @@ impl IntervalWorker for PollLeaderboards {
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
-        let resp = ctx
+        ctx
             .fetch_and_save(
                 "https://mmolb.com/api/leaderboards",
                 EntityKind::Leaderboard,
