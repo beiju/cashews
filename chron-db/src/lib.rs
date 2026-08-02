@@ -9,7 +9,9 @@ use models::{EntityKind, NewObject};
 use sea_query::Iden;
 use siphasher::sip128::{Hasher128, SipHasher};
 use sqlx::{
-    Acquire, ConnectOptions, Executor, PgPool, postgres::{PgConnectOptions, PgPoolOptions}, types::JsonRawValue
+    Acquire, ConnectOptions, Executor, PgPool,
+    postgres::{PgConnectOptions, PgPoolOptions},
+    types::JsonRawValue,
 };
 use time::{Duration, OffsetDateTime};
 use tracing::{error, info};
@@ -371,7 +373,6 @@ impl ChronDb {
             .execute(&self.pool).await?;
         Ok(())
     }
-
 
     pub async fn update_game(&self, game: DbGameSaveModel<'_>) -> anyhow::Result<()> {
         sqlx::query("insert into games (game_id, season, day, home_team_id, away_team_id, state, event_count, last_update, day_special) values ($1, $2, $3, $4, $5, $6, $7, $8, $9) on conflict (game_id) do update set state = excluded.state, event_count = excluded.event_count, last_update = excluded.last_update, day_special = excluded.day_special")
