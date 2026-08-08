@@ -1,4 +1,4 @@
-use crate::models::{HasPageToken, PageToken};
+use crate::models::{FeedEvent, HasPageToken, PageToken};
 use std::pin::Pin;
 
 use futures::{Stream, TryStreamExt};
@@ -26,6 +26,16 @@ pub struct GetEntitiesQuery {
 pub struct GetVersionsQuery {
     pub kind: EntityKind,
     pub id: Vec<String>,
+    pub before: Option<OffsetDateTime>,
+    pub after: Option<OffsetDateTime>,
+    pub count: u64,
+    pub order: SortOrder,
+    pub page: Option<PageToken>,
+}
+
+pub struct GetFeedEventsQuery {
+    pub subject_type: Option<String>,
+    pub subject_id: Vec<String>,
     pub before: Option<OffsetDateTime>,
     pub after: Option<OffsetDateTime>,
     pub count: u64,
@@ -283,6 +293,68 @@ impl ChronDb {
             .fetch_all(&self.pool).await?;
 
         Ok(res)
+    }
+    pub async fn get_feed_events(
+        &self,
+        q: GetFeedEventsQuery,
+    ) -> anyhow::Result<PaginatedResult<FeedEvent>> {
+        let mut qq = Query::select()
+            .expr(Expr::col((Idens::FeedEvents, Asterisk)))
+            .from(Idens::FeedEvents)
+            .order_by_columns([
+                (Idens::Timestamp, get_order(q.order)),
+                (Idens::EventId, get_order(q.order)),
+            ])
+            .limit(q.count)
+            .to_owned();
+
+        if let Some(subject_type) = q.subject_type {
+            qq = qq
+                .and_where(Expr::col(Idens::SubjectType).eq(subject_type))
+                .to_owned();
+        }
+
+        if !q.subject_id.is_empty() {
+            qq = qq
+                .and_where(Expr::col(Idens::SubjectId).is_in(q.subject_id))
+                .to_owned();
+        }
+
+        if let Some(before) = q.before {
+            qq = qq
+                .and_where(Expr::col(Idens::Timestamp).lte(before))
+                .to_owned();
+        }
+
+        if let Some(after) = q.after {
+            qq = qq
+                .and_where(Expr::col(Idens::Timestamp).gte(after))
+                .to_owned();
+        }
+
+        if let Some(page) = q.page {
+            qq = qq
+                .and_where(paginate(
+                    q.order,
+                    Idens::Timestamp,
+                    Some(Idens::EventId),
+                    page,
+                ))
+                .to_owned();
+        }
+
+        let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
+        let items = sqlx::query_as_with(&q, vals).fetch_all(&self.pool).await?;
+
+        let pt = items.last().map(|e: &FeedEvent| PageToken {
+            entity_id: e.event_id.clone(),
+            timestamp: e.timestamp.inner(),
+        });
+
+        Ok(PaginatedResult {
+            items,
+            next_page: pt,
+        })
     }
 
     pub async fn clear_observations(&self, kind: EntityKind) -> anyhow::Result<()> {

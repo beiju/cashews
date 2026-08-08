@@ -9,9 +9,8 @@ create table feed_events (
     data jsonb not null
 );
 
-create index if not exists idx_feed_events_by_timestamp_id
+create unique index if not exists idx_feed_events_by_timestamp_id
     ON feed_events (timestamp, event_id);
 
 create index if not exists idx_feed_events_by_subject_timestamp
     ON feed_events (subject_type, subject_id, timestamp);
-

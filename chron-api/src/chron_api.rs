@@ -16,7 +16,7 @@ use serde::{
     Deserialize, Deserializer,
     de::{self, Visitor},
 };
-
+use chron_db::models::FeedEvent;
 use crate::{AppError, AppState};
 
 #[derive(Deserialize)]
@@ -97,6 +97,44 @@ pub async fn get_versions(
             id: q.id,
             before: q.before.map(|x| x.0),
             after: q.after.map(|x| x.0),
+            count,
+            order: q.order,
+            page: q.page,
+        })
+        .await?;
+
+    Ok(Json(events))
+}
+
+#[derive(Deserialize, Debug)]
+pub struct GetFeedEventsQuery {
+    pub subject_type: Option<String>,
+
+    #[serde(deserialize_with = "comma_separated", default)]
+    pub subject_id: Vec<String>,
+    pub before: Option<IsoDateTime>,
+    pub after: Option<IsoDateTime>,
+    pub count: Option<u64>,
+    #[serde(default)]
+    pub order: SortOrder,
+
+    pub page: Option<PageToken>,
+}
+
+pub async fn get_feed_events(
+    State(ctx): State<AppState>,
+    Query(q): Query<GetFeedEventsQuery>,
+) -> Result<Json<PaginatedResult<FeedEvent>>, AppError> {
+
+    let count = q.count.unwrap_or(1000);
+
+    let events = ctx
+        .db
+        .get_feed_events(chron_db::queries::GetFeedEventsQuery {
+            subject_type: q.subject_type,
+            subject_id: q.subject_id,
+            before: q.before.map(|d| d.inner()),
+            after: q.after.map(|d| d.inner()),
             count,
             order: q.order,
             page: q.page,

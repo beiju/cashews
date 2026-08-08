@@ -58,7 +58,8 @@ async fn main() -> anyhow::Result<()> {
 
     let mut app = Router::new()
         .route("/chron/v0/entities", get(chron_api::get_entities))
-        .route("/chron/v0/versions", get(chron_api::get_versions));
+        .route("/chron/v0/versions", get(chron_api::get_versions))
+        .route("/chron/v0/feed_events", get(chron_api::get_feed_events));
 
     if let Some(dir) = &state.config.export_path {
         dbg!(dir);

@@ -63,6 +63,18 @@ pub struct EntityVersion {
     pub data: sqlx::types::Json<Box<JsonRawValue>>,
 }
 
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct FeedEvent {
+    pub event_id: String,
+    pub subject_type: String,
+    pub subject_id: String,
+    pub timestamp: IsoDateTime,
+    pub timestamp_str: String,
+    pub request_start: IsoDateTime,
+    pub request_end: IsoDateTime,
+    pub data: sqlx::types::Json<Box<JsonRawValue>>,
+}
+
 impl EntityVersion {
     pub fn parse<T: DeserializeOwned>(&self) -> anyhow::Result<T> {
         Ok(T::deserialize(&**self.data)?)

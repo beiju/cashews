@@ -103,7 +103,34 @@ impl IntervalWorker for PollFeeds {
 
             let response = ctx.client.fetch(url).await?;
 
-            let container: FeedEvents = response.parse()?;
+            let mut container: FeedEvents = response.parse()?;
+
+            // The api can return one item from before the cursor; this filters
+            // them out
+            let num_events_before = container.events.len();
+            if let Some(cursor) = cursor {
+                container.events.retain(|event| {
+                    let Some(id) = event["_id"].as_str() else {
+                        // If we can't get the event id, keep the event and an
+                        // error will be thrown later
+                        return true;
+                    };
+                    let Some(ts) = event["ts"].as_str() else {
+                        // If we can't get the timestamp, keep the event and an
+                        // error will be thrown later
+                        return true;
+                    };
+
+                    // Keep the event if its cursor is strictly greater than
+                    // the cursor of the last event we ingested
+                    format!("{ts}|{id}") > cursor
+                });
+                let num_events_after = container.events.len();
+                info!(
+                    "Filtered {} events from before (or equal to) the cursor",
+                    num_events_before - num_events_after,
+                );
+            }
 
             if let Some(limit_value) = &container.limit {
                 if let Some(limit) = limit_value.as_i64() {

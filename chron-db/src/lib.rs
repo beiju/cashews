@@ -57,6 +57,10 @@ pub enum Idens {
     ValidFrom,
     ValidTo,
     Versions,
+    FeedEvents,
+    SubjectType,
+    SubjectId,
+    EventId,
 }
 
 #[derive(Clone)]
