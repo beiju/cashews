@@ -93,6 +93,14 @@ impl IntervalWorker for HandleSuperstarGames {
             .flat_map(|x| x.game_id)
             .collect::<Vec<_>>();
 
+        let resp = ctx
+            .fetch_and_save(
+                "https://mmolb.com/api/super16-bracket",
+                EntityKind::Super16Bracket,
+                "super16-bracket",
+            )
+            .await?;
+
         poll_games(&ctx, &game_ids).await?;
         Ok(())
     }

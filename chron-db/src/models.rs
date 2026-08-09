@@ -46,6 +46,7 @@ pub enum EntityKind {
     CutsceneList = 31,
     Cutscene = 32,
     Leaderboard = 33,
+    Super16Bracket = 34,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]
