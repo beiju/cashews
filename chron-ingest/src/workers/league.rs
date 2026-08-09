@@ -6,13 +6,13 @@ use std::{
 use chron_db::models::{EntityKind, NewObject};
 use serde::Deserialize;
 use tracing::info;
-
+use tracing::log::warn;
 use crate::{
     http::ClientResponse,
     models::{MmolbLeague, MmolbState, MmolbTeam},
     synthetic,
 };
-
+use crate::models::MmolbSuper16Bracket;
 use super::{IntervalWorker, WorkerContext};
 
 pub struct PollLeague;
@@ -205,6 +205,18 @@ async fn get_all_known_team_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<S
 
     // get from DB teams
     team_ids.extend(ctx.db.get_all_entity_ids(EntityKind::Team).await?);
+
+    // get from super 16 tournament
+    for s16 in ctx.db.get_all_latest(EntityKind::Super16Bracket).await? {
+        match s16.parse::<MmolbSuper16Bracket>() {
+            Ok(s16) => {
+                team_ids.extend(s16.seeds.into_iter().map(|seed| seed.id));
+            }
+            Err(err) => {
+                warn!("Couldn't parse super 16 bracket: {err}");
+            }
+        }
+    }
 
     Ok(team_ids)
 }

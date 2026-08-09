@@ -238,3 +238,19 @@ pub struct MmolbDayGame {
     #[serde(rename = "State")]
     pub state: String,
 }
+
+#[derive(Deserialize, Debug)]
+pub struct MmolbTeamInfo {
+    pub color: String,
+    pub emoji: String,
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct MmolbSuper16Bracket {
+    #[serde(rename = "Seeds")]
+    pub seeds: Vec<MmolbTeamInfo>,
+    
+    // Not deserializing the rest yet
+}
