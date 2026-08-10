@@ -249,8 +249,7 @@ pub struct MmolbTeamInfo {
 
 #[derive(Deserialize, Debug)]
 pub struct MmolbSuper16Bracket {
-    #[serde(rename = "Seeds")]
     pub seeds: Vec<MmolbTeamInfo>,
-    
+
     // Not deserializing the rest yet
 }
