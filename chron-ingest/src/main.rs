@@ -107,8 +107,8 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollMiscData);
         spawn(ctx.clone(), HandleEventGames);
         spawn(ctx.clone(), HandleSuperstarGames);
-        spawn(ctx.clone(), PollTeamFeeds);
-        spawn(ctx.clone(), PollPlayerFeeds);
+        // spawn(ctx.clone(), PollTeamFeeds);
+        // spawn(ctx.clone(), PollPlayerFeeds);
         spawn(ctx.clone(), PollFeeds);
         spawn(ctx.clone(), PollCutscenes);
         spawn(ctx.clone(), PollLeaderboards);
