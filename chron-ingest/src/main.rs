@@ -25,6 +25,7 @@ use crate::workers::{
     misc::PollMiscData,
     leaderboards::PollLeaderboards,
 };
+use crate::workers::election::PollElection;
 
 mod http;
 mod models;
@@ -112,6 +113,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollFeeds);
         spawn(ctx.clone(), PollCutscenes);
         spawn(ctx.clone(), PollLeaderboards);
+        spawn(ctx.clone(), PollElection);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");

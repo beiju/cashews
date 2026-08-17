@@ -23,6 +23,7 @@ pub mod matviews;
 pub mod message;
 pub mod misc;
 pub mod leaderboards;
+pub mod election;
 
 #[derive(Clone)]
 pub struct WorkerContext {
