@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::time::Duration;
 
 use chron_db::models::EntityKind;
@@ -35,6 +36,23 @@ impl IntervalWorker for PollElection {
             format!("season-{last_season_num}-election"),
         )
             .await?;
+
+        let existing_histories = ctx.db.get_all_latest(EntityKind::ElectionHistory).await?;
+        let existing_history_ids: HashSet<_> = existing_histories.into_iter()
+            .map(|v| v.entity_id)
+            .collect();
+        for season in seasons {
+            let season_parsed: MmolbSeason = season.parse()?;
+            let id = format!("season-{}-election", season_parsed.season);
+            if !existing_history_ids.contains(&id) {
+                ctx.fetch_and_save(
+                    format!("https://mmolb.com/api/election_history?season={}", season_parsed.season),
+                    EntityKind::ElectionHistory,
+                    id,
+                )
+                    .await?;
+            }
+        }
 
         Ok(())
     }
