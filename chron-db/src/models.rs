@@ -164,15 +164,14 @@ impl FromStr for PageToken {
         let engine = base64::engine::general_purpose::URL_SAFE;
         let data = engine.decode(s)?;
 
-        let timestamp_bytes = data.get(0..8)
-            .ok_or_else(|| anyhow::anyhow!("invalid page token: not enough bytes for a timestamp"))?
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("invalid page token: wrong number of bytes for a timestamp"))?;
-        let timestamp_nanos = i64::from_be_bytes(timestamp_bytes);
+        let (timestamp_bytes, id_bytes) = data.split_first_chunk()
+            .ok_or_else(|| anyhow::anyhow!("invalid page token"))?;
+
+        let timestamp_nanos = i64::from_be_bytes(*timestamp_bytes);
         let timestamp =
             OffsetDateTime::from_unix_timestamp_nanos((timestamp_nanos as i128) * 1000)?;
 
-        let entity_id = String::from_utf8_lossy(&data[8..]).into_owned();
+        let entity_id = String::from_utf8_lossy(id_bytes).into_owned();
 
         Ok(PageToken {
             entity_id,
