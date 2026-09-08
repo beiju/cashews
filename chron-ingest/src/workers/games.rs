@@ -31,7 +31,9 @@ impl IntervalWorker for PollGameDays {
         info!("PollGameDays updated state");
 
         // todo: loop multiple seasons?
-        let season_id = state.season_id;
+        // let season_id = state.season_id;
+        // TEMP Backfill missed data from season 15
+        let season_id = "6a710f04f33bb03ef468b3e8".to_string();
         handle_season(ctx, season_id.clone()).await?;
         info!("PollGameDays updated season");
 
