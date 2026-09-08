@@ -219,6 +219,21 @@ pub struct MmolbSeason {
     pub other_fields: HashMap<String, serde_json::Value>,
 }
 
+impl MmolbSeason {
+    pub fn into_all_day_ids(self) -> Vec<String> {
+        let mut days = self.days;
+        days.extend(
+            self.other_fields.into_iter()
+                .flat_map(|(key, val)| {
+                    (key.starts_with("SuperstarDay") && key["SuperstarDay".len()..].parse::<i64>().is_ok())
+                        .then(|| val.as_str().map(str::to_string))
+                        .flatten()
+                })
+        );
+        days
+    }
+}
+
 #[derive(Deserialize)]
 pub struct MmolbDay {
     #[serde(rename = "Games")]

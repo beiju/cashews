@@ -103,6 +103,7 @@ impl IntervalWorker for HandleSuperstarGames {
             )
             .await?;
 
+        // TODO I think this is now redundant with PollGameDays
         poll_games(&ctx, &game_ids).await?;
         Ok(())
     }
@@ -140,7 +141,7 @@ async fn get_all_game_ids_from_days(
     let seasons = ctx.db.get_all_latest(EntityKind::Season).await?;
     for season in seasons {
         let season_parsed: MmolbSeason = season.parse()?;
-        for day in season_parsed.days {
+        for day in season_parsed.into_all_day_ids() {
             season_map.insert(day, season.entity_id.clone());
         }
     }
@@ -175,20 +176,13 @@ async fn handle_season(ctx: &WorkerContext, season_id: String) -> anyhow::Result
         .await?;
     let season_parsed: MmolbSeason = season.parse()?;
 
-    let mut season_day_ids = season_parsed.days;
-    season_day_ids.extend(
-        season_parsed.other_fields.into_iter()
-            .flat_map(|(key, val)| {
-                (key.starts_with("SuperstarDay") && key["SuperstarDay".len()..].parse::<i64>().is_ok())
-                    .then(|| val.as_str().map(str::to_string))
-                    .flatten()
-            })
-    );
+    let season = season_parsed.season;
+    let season_day_ids = season_parsed.into_all_day_ids();
 
     ctx.process_many_with_progress(
         season_day_ids,
         10,
-        &format!("season {} days", season_parsed.season),
+        &format!("season {} days", season),
         handle_day,
     )
     .await;
