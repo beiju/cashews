@@ -212,13 +212,11 @@ pub struct MmolbSeason {
     #[serde(rename = "Days")]
     pub days: Vec<String>,
 
-    // #[serde(rename="Election")]
-    // pub election: String,
-    #[serde(rename = "SuperstarDay1")]
-    pub superstar_day_1: Option<String>,
-
-    #[serde(rename = "SuperstarDay2")]
-    pub superstar_day_2: Option<String>,
+    // There's an arbitrary number of SuperstarDayN keys and I don't want to
+    // hard-code a specific amount of them (there's at least 6 as I write this
+    // and new ones get added sometimes)
+    #[serde(flatten)]
+    pub other_fields: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Deserialize)]

@@ -32,6 +32,8 @@ impl IntervalWorker for PollGameDays {
 
         // todo: loop multiple seasons?
         let season_id = state.season_id;
+        // TEMP Only run this once!
+        handle_season(ctx, "6a710f04f33bb03ef468b3e8".to_string()).await?; // Season 15
         handle_season(ctx, season_id.clone()).await?;
         info!("PollGameDays updated season");
 
@@ -174,8 +176,14 @@ async fn handle_season(ctx: &WorkerContext, season_id: String) -> anyhow::Result
     let season_parsed: MmolbSeason = season.parse()?;
 
     let mut season_day_ids = season_parsed.days;
-    season_day_ids.extend(season_parsed.superstar_day_1);
-    season_day_ids.extend(season_parsed.superstar_day_2);
+    season_day_ids.extend(
+        season_parsed.other_fields.into_iter()
+            .flat_map(|(key, val)| {
+                (key.starts_with("SuperstarDay") && key["SuperstarDay".len()..].parse::<i64>().is_ok())
+                    .then(|| val.as_str().map(str::to_string))
+                    .flatten()
+            })
+    );
 
     ctx.process_many_with_progress(
         season_day_ids,
