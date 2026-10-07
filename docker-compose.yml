@@ -33,7 +33,7 @@ services:
       - postgres_db:/var/lib/postgresql/data
     restart: unless-stopped
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:12432:5432"
     command: ["-c", "shared_buffers=4GB", "-c", "max_connections=250", "-c", "maintenance_work_mem=4GB", "-c", "work_mem=1GB", "-c", "wal_buffers=16MB"]
     shm_size: 1G
 
