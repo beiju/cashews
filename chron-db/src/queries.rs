@@ -34,6 +34,7 @@ pub struct GetVersionsQuery {
 }
 
 pub struct GetFeedEventsQuery {
+    pub event_id: Vec<String>,
     pub subject_type: Option<String>,
     pub subject_id: Vec<String>,
     pub before: Option<OffsetDateTime>,
@@ -307,6 +308,12 @@ impl ChronDb {
             ])
             .limit(q.count)
             .to_owned();
+
+        if !q.event_id.is_empty() {
+            qq = qq
+                .and_where(Expr::col(Idens::EventId).is_in(q.event_id))
+                .to_owned();
+        }
 
         if let Some(subject_type) = q.subject_type {
             qq = qq

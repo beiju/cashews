@@ -108,6 +108,9 @@ pub async fn get_versions(
 
 #[derive(Deserialize, Debug)]
 pub struct GetFeedEventsQuery {
+    #[serde(deserialize_with = "comma_separated", default)]
+    pub event_id: Vec<String>,
+
     pub subject_type: Option<String>,
 
     #[serde(deserialize_with = "comma_separated", default)]
@@ -131,6 +134,7 @@ pub async fn get_feed_events(
     let events = ctx
         .db
         .get_feed_events(chron_db::queries::GetFeedEventsQuery {
+            event_id: q.event_id,
             subject_type: q.subject_type,
             subject_id: q.subject_id,
             before: q.before.map(|d| d.inner()),
